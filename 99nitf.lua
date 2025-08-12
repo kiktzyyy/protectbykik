@@ -30,15 +30,16 @@ if game.PlaceId == 79546208627805 then
 
 elseif game.PlaceId == 126509999114328 then
 
-local plr = game.Players.LocalPlayer
-local RunService = game:GetService("RunService")
+    local plr = game.Players.LocalPlayer
+    local RunService = game:GetService("RunService")
 
-RunService.Stepped:Connect(function()
-    pcall(function()
-        sethiddenproperty(plr, "SimulationRadius", math.huge)
-        sethiddenproperty(plr, "MaxSimulationRadius", math.huge)
+    RunService.Stepped:Connect(function()
+        pcall(function()
+            sethiddenproperty(plr, "SimulationRadius", math.huge)
+            sethiddenproperty(plr, "MaxSimulationRadius", math.huge)
+        end)
     end)
-end)
+
     local Players = game:GetService("Players")
     local Workspace = game:GetService("Workspace")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -80,51 +81,51 @@ end)
         end
     end
 
-local function hopServerWithRetry(reason)
-    print("[ServerHop] Reason:", reason or "Unknown")
-    local hopList = loadHopList()
+    local function hopServerWithRetry(reason)
+        print("[ServerHop] Reason:", reason or "Unknown")
+        local hopList = loadHopList()
 
-    while true do
-        local success, response = pcall(function()
-            return game:HttpGet("https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Asc&limit=100")
-        end)
+        while true do
+            local success, response = pcall(function()
+                return game:HttpGet("https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Asc&limit=100")
+            end)
 
-        if success then
-            local data = HttpService:JSONDecode(response)
-            if data and data.data then
-                local candidates = {}
-                for _, server in ipairs(data.data) do
-                    if server.playing > 0 and server.playing < server.maxPlayers
-                        and server.id ~= game.JobId
-                        and not table.find(hopList, server.id) then
-                        table.insert(candidates, server)
+            if success then
+                local data = HttpService:JSONDecode(response)
+                if data and data.data then
+                    local candidates = {}
+                    for _, server in ipairs(data.data) do
+                        if server.playing > 0 and server.playing < server.maxPlayers
+                            and server.id ~= game.JobId
+                            and not table.find(hopList, server.id) then
+                            table.insert(candidates, server)
+                        end
                     end
-                end
 
-                if #candidates == 0 then
-                    hopList = {}
-                    saveHopList(hopList)
-                    task.wait(1)
+                    if #candidates == 0 then
+                        hopList = {}
+                        saveHopList(hopList)
+                        task.wait(1)
+                    else
+                        shuffleTable(candidates)
+                        local target = candidates[1]
+                        table.insert(hopList, target.id)
+                        saveHopList(hopList)
+
+                        print("[ServerHop] Trying:", target.id)
+                        local ok = pcall(function()
+                            TeleportService:TeleportToPlaceInstance(placeId, target.id, player)
+                        end)
+                        task.wait(1)
+                    end
                 else
-                    shuffleTable(candidates)
-                    local target = candidates[1]
-                    table.insert(hopList, target.id)
-                    saveHopList(hopList)
-
-                    print("[ServerHop] Trying:", target.id)
-                    local ok = pcall(function()
-                        TeleportService:TeleportToPlaceInstance(placeId, target.id, player)
-                    end)
                     task.wait(1)
                 end
             else
                 task.wait(1)
             end
-        else
-            task.wait(1)
         end
     end
-end
 
     local function getToolAndDamageID()
         for toolName, suffix in pairs(toolsDamageIDs) do
@@ -143,6 +144,78 @@ end
             end
         end
         return nil
+    end
+
+    -- Penambahan: buka semua chest dulu
+    local function openAllChests()
+        local itemsFolder = workspace:FindFirstChild("Items")
+        if itemsFolder then
+            for _, chest in ipairs(itemsFolder:GetChildren()) do
+                if not _G.Settings.Main["Auto Open Chest"] then break end
+                if chest:IsA("Model") and string.find(chest.Name, "Chest") then
+                    local prompt = chest:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt then
+                        fireproximityprompt(prompt, 0)
+                        task.wait(0.1)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Cek apakah ada diamond di workspace.Items
+    local function findDiamonds()
+        local diamonds = {}
+        for _, diamond in ipairs(Workspace.Items:GetChildren()) do
+            if diamond.Name == "Diamond" and diamond:IsA("Model") then
+                table.insert(diamonds, diamond)
+            end
+        end
+        return diamonds
+    end
+
+    -- Teleport ke diamond dan ambil
+    local function teleportAndTakeDiamonds()
+        local diamonds = findDiamonds()
+        if #diamonds > 0 then
+            local character = player.Character or player.CharacterAdded:Wait()
+            for _, diamond in ipairs(diamonds) do
+                local mainPart = diamond:FindFirstChildWhichIsA("BasePart") or diamond:FindFirstChild("Main")
+                if mainPart then
+                    character:PivotTo(mainPart.CFrame + Vector3.new(0, 5, 0))
+                    task.wait(0.3)
+                    RemoteEvents.RequestTakeDiamonds:FireServer(diamond)
+                    task.wait(0.3)
+                end
+            end
+            return true
+        end
+        return false
+    end
+    
+        local function takeDiamonds()
+        for _, diamond in ipairs(Workspace.Items:GetChildren()) do
+            if diamond.Name == "Diamond" and diamond:IsA("Model") then
+                RemoteEvents.RequestTakeDiamonds:FireServer(diamond)
+            end
+        end
+    end
+
+    local function waitForDiamonds(timeout)
+        timeout = timeout or 60
+        local start = os.time()
+        while os.time() - start < timeout do
+            local found = false
+            for _, d in ipairs(Workspace.Items:GetChildren()) do
+                if d.Name == "Diamond" then
+                    found = true
+                    break
+                end
+            end
+            if found then return true end
+            task.wait(1)
+        end
+        return false
     end
 
     local function teleportRandomChests(times)
@@ -255,14 +328,6 @@ end
         end)
     end
 
-    local function takeDiamonds()
-        for _, diamond in ipairs(Workspace.Items:GetChildren()) do
-            if diamond.Name == "Diamond" and diamond:IsA("Model") then
-                RemoteEvents.RequestTakeDiamonds:FireServer(diamond)
-            end
-        end
-    end
-
     local function waitForDiamonds(timeout)
         timeout = timeout or 60
         local start = os.time()
@@ -279,35 +344,76 @@ end
         end
         return false
     end
-    
-  local function teleportBetweenChestAndPart(chestMain, partTarget)
-    task.spawn(function()
-            local char = player.Character or player.CharacterAdded:Wait()
-            char:PivotTo(partTarget.CFrame + Vector3.new(0, 5, 0))
-            task.wait(0.5)
 
-            char:PivotTo(chestMain.CFrame + Vector3.new(0, 5, 0))
-            task.wait(0.5)
-    end)
+    -- Main Logic with added steps:
+    -- 1. Buka semua chest dulu
+    -- 2. Cek diamond, teleport dan ambil kalau ada
+    -- 3. Baru lanjut teleport ke 5 chest
+    -- 4. Kemudian teleport ke stronghold chest dan proses selanjutnya
+
+    _G.Settings.Main["Auto Open Chest"] = true -- pastikan setting ini aktif supaya buka chest jalan
+
+openAllChests()
+task.wait(3)
+
+-- Tunggu sampai karakter ada di workspace dan HumanoidRootPart ada
+local player = game.Players.LocalPlayer
+local character = player.Character
+while not (character and character.Parent == workspace and character:FindFirstChild("HumanoidRootPart")) do
+    task.wait(0.1)
+    character = player.Character
 end
 
-    -- Main Loop
+-- Kalau mau nunggu sampai posisi karakter sudah di tempat tertentu juga bisa cek posisi
+-- Misal, tunggu sampai HumanoidRootPart ada dan posisi sudah update
+
+local foundDiamond = false
+local diamonds = findDiamonds()
+if #diamonds > 0 then
+    foundDiamond = teleportAndTakeDiamonds()
+    -- Setelah teleport dan take diamond, juga bisa pakai loop serupa kalau mau tunggu sampai posisi berubah
+    task.wait(1)
+end
+
     teleportRandomChests(5)
+
     local teleported = tpToStrongholdChest()
     if teleported then
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Two, false, nil)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Two, false, nil)
         killAuraLoop()
         fireProximityLoop()
-        
-        local partTarget = workspace.Map.Landmarks.Stronghold.Building.Floor:FindFirstChild("Part")
-        
-        if chestMain and partTarget then
-        teleportBetweenChestAndPart(chestMain, partTarget)
+
+spawn(function()
+    while true do
+        local character = player.Character or player.CharacterAdded:Wait()
+        local doorMain = workspace.Map.Landmarks.Stronghold.Functional.Doors.LockedDoorsFloor1.DoorRight.Main
+        local prompt = doorMain.ProximityAttachment:FindFirstChild("ProximityInteraction")
+        if doorMain and prompt then
+            character:PivotTo(doorMain.CFrame + Vector3.new(0, 5, 0))
+            task.wait(1)
+            fireproximityprompt(prompt, 0)
+            task.wait(0.5)
+            tpToStrongholdChest()
+            task.wait(3)
+        end
+        local dropped = false
+        for _, item in ipairs(workspace.Items:GetChildren()) do
+            if item.Name == "Diamond" and item:IsA("Model") then
+                dropped = true
+                break
+            end
         end
 
+        if dropped then
+            break
+        end
+    end
+end)
         local dropped = waitForDiamonds(500)
         if dropped then
+        tpToStrongholdChest()
+          task.wait(3)
             takeDiamonds()
             task.wait(3)
             hopServerWithRetry("Diamonds collected")
