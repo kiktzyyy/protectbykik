@@ -1,32 +1,14 @@
 if game.PlaceId == 79546208627805 then
-    -- Lobby teleport
-    local TweenService = game:GetService("TweenService")
-    local Players = game:GetService("Players")
-    local teleporter3 = workspace.Teleporter3
+task.wait(2)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportEvent = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("TeleportEvent")
 
-    local enterParts = {}
-    for _, obj in ipairs(teleporter3:GetChildren()) do
-        if obj.Name == "EnterPart" and obj:IsA("BasePart") then
-            table.insert(enterParts, obj)
-        end
-    end
+TeleportEvent:FireServer("Add", 1)
 
-    if #enterParts == 0 then
-        warn("Tidak ditemukan part 'EnterPart'")
-        return
-    end
+task.wait(0.5)
 
-    local randomPart = enterParts[math.random(1, #enterParts)]
-    local player = Players.LocalPlayer
-    local character = player.Character or player.CharacterAdded:Wait()
-    local hrp = character:WaitForChild("HumanoidRootPart")
-
-    local tween = TweenService:Create(hrp, TweenInfo.new(2), {Position = randomPart.Position + Vector3.new(0, 5, 0)})
-    tween:Play()
-
-    tween.Completed:Connect(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):WaitForChild("TeleportEvent"):FireServer("Chosen", 1)
-    end)
+-- Kedua: Chosen teleport
+TeleportEvent:FireServer("Chosen", nil, 1)
 
 elseif game.PlaceId == 126509999114328 then
 
