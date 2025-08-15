@@ -367,28 +367,58 @@ end
         fireProximityLoop()
 
 spawn(function()
+    local lastPosition = nil
+    local idleTime = 0
+
     while true do
         local character = player.Character or player.CharacterAdded:Wait()
-        local doorMain = workspace.Map.Landmarks.Stronghold.Functional.Doors.LockedDoorsFloor1.DoorRight.Main
-        local prompt = doorMain.ProximityAttachment:FindFirstChild("ProximityInteraction")
-        if doorMain and prompt then
-            character:PivotTo(doorMain.CFrame + Vector3.new(0, 5, 0))
-            task.wait(1)
-            fireproximityprompt(prompt, 0)
-            task.wait(0.5)
-            tpToStrongholdChest()
-            task.wait(3)
-        end
-        local dropped = false
-        for _, item in ipairs(workspace.Items:GetChildren()) do
-            if item.Name == "Diamond" and item:IsA("Model") then
-                dropped = true
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if not hrp then
+            task.wait(0.1)
+        else
+            -- cek idle
+            if lastPosition and (hrp.Position - lastPosition).Magnitude < 0.1 then
+                idleTime = idleTime + 0.1
+            else
+                idleTime = 0
+            end
+            lastPosition = hrp.Position
+
+            if idleTime >= 5 then
+                print("[IdleCheck] Idle 5 detik, hop server")
+                hopServerWithRetry("Idle 5 detik")
                 break
             end
-        end
 
-        if dropped then
-            break
+            -- pivot ke pintu dan fire prompt
+            local doorMain = workspace.Map.Landmarks.Stronghold.Functional.Doors.LockedDoorsFloor1.DoorRight.Main
+            local prompt = doorMain and doorMain:FindFirstChild("ProximityAttachment") and 
+                           doorMain.ProximityAttachment:FindFirstChild("ProximityInteraction")
+
+            if doorMain and prompt then
+                character:PivotTo(doorMain.CFrame + Vector3.new(0, 5, 0))
+                task.wait(1)
+                fireproximityprompt(prompt, 0)
+                task.wait(0.5)
+                tpToStrongholdChest()
+                task.wait(3)
+            end
+
+            -- cek diamond
+            local dropped = false
+            for _, item in ipairs(workspace.Items:GetChildren()) do
+                if item.Name == "Diamond" and item:IsA("Model") then
+                    dropped = true
+                    break
+                end
+            end
+
+            if dropped then
+                takeDiamonds()
+                break
+            end
+
+            task.wait(0.1)
         end
     end
 end)
@@ -396,7 +426,7 @@ end)
         if dropped then
         tpToStrongholdChest()
           task.wait(3)
-            takeDiamonds()
+            teleportAndTakeDiamonds()
             task.wait(3)
             hopServerWithRetry("Diamonds collected")
         else
