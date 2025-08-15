@@ -12,6 +12,8 @@ TeleportEvent:FireServer("Chosen", nil, 1)
 
 elseif game.PlaceId == 126509999114328 then
 
+
+
     local plr = game.Players.LocalPlayer
     local RunService = game:GetService("RunService")
 
@@ -34,6 +36,31 @@ elseif game.PlaceId == 126509999114328 then
     local KillAuraRadius = 5000
     local hopFileName = "hopServers.json"
     _G.Settings = {Main = {["Kill Aura"] = true}}
+-- buat marker sekali
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+local marker = Instance.new("Part")
+marker.Size = Vector3.new(1,1,1)
+marker.Transparency = 1
+marker.Anchored = true
+marker.CanCollide = false
+marker.CFrame = CFrame.new(0,0,0) -- awal
+marker.Parent = workspace
+
+-- follow marker terus
+local RunService = game:GetService("RunService")
+RunService.Heartbeat:Connect(function()
+    if hrp and marker.Parent then
+        hrp.CFrame = marker.CFrame
+    end
+end)
+
+-- function untuk update posisi marker
+local function followBlockForever(targetCFrame)
+    marker.CFrame = targetCFrame
+    return marker
+end
 
     local toolsDamageIDs = {
         ["Old Axe"] = "_1",
@@ -164,7 +191,7 @@ elseif game.PlaceId == 126509999114328 then
             for _, diamond in ipairs(diamonds) do
                 local mainPart = diamond:FindFirstChildWhichIsA("BasePart") or diamond:FindFirstChild("Main")
                 if mainPart then
-                    character:PivotTo(mainPart.CFrame + Vector3.new(0, 5, 0))
+                    followBlockForever(mainPart.CFrame + Vector3.new(0, 5, 0))
                     task.wait(0.3)
                     RemoteEvents.RequestTakeDiamonds:FireServer(diamond)
                     task.wait(0.3)
@@ -228,7 +255,7 @@ elseif game.PlaceId == 126509999114328 then
             local chest = shuffled[i]
             if chest and chest.Main then
                 local character = player.Character or player.CharacterAdded:Wait()
-                character:PivotTo(chest.Main.CFrame + Vector3.new(0, 5, 0))
+                followBlockForever(chest.Main.CFrame + Vector3.new(0, 5, 0))
                 task.wait(1)
             end
         end
@@ -242,7 +269,7 @@ elseif game.PlaceId == 126509999114328 then
         local mainPart = chest:FindFirstChild("Main")
         if not mainPart then return false end
         local character = player.Character or player.CharacterAdded:Wait()
-        character:PivotTo(mainPart.CFrame + Vector3.new(0, 5, 0))
+        followBlockForever(mainPart.CFrame + Vector3.new(0, 5, 0))
         return true
     end
 
@@ -326,13 +353,6 @@ elseif game.PlaceId == 126509999114328 then
         end
         return false
     end
-
-    -- Main Logic with added steps:
-    -- 1. Buka semua chest dulu
-    -- 2. Cek diamond, teleport dan ambil kalau ada
-    -- 3. Baru lanjut teleport ke 5 chest
-    -- 4. Kemudian teleport ke stronghold chest dan proses selanjutnya
-
     _G.Settings.Main["Auto Open Chest"] = true -- pastikan setting ini aktif supaya buka chest jalan
 
 openAllChests()
@@ -366,63 +386,7 @@ end
         killAuraLoop()
         fireProximityLoop()
 
-spawn(function()
-    local lastPosition = nil
-    local idleTime = 0
-
-    while true do
-        local character = player.Character or player.CharacterAdded:Wait()
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        if not hrp then
-            task.wait(0.1)
-        else
-            -- cek idle
-            if lastPosition and (hrp.Position - lastPosition).Magnitude < 0.1 then
-                idleTime = idleTime + 0.1
-            else
-                idleTime = 0
-            end
-            lastPosition = hrp.Position
-
-            if idleTime >= 5 then
-                print("[IdleCheck] Idle 5 detik, hop server")
-                hopServerWithRetry("Idle 5 detik")
-                break
-            end
-
-            -- pivot ke pintu dan fire prompt
-            local doorMain = workspace.Map.Landmarks.Stronghold.Functional.Doors.LockedDoorsFloor1.DoorRight.Main
-            local prompt = doorMain and doorMain:FindFirstChild("ProximityAttachment") and 
-                           doorMain.ProximityAttachment:FindFirstChild("ProximityInteraction")
-
-            if doorMain and prompt then
-                character:PivotTo(doorMain.CFrame + Vector3.new(0, 5, 0))
-                task.wait(1)
-                fireproximityprompt(prompt, 0)
-                task.wait(0.5)
-                tpToStrongholdChest()
-                task.wait(3)
-            end
-
-            -- cek diamond
-            local dropped = false
-            for _, item in ipairs(workspace.Items:GetChildren()) do
-                if item.Name == "Diamond" and item:IsA("Model") then
-                    dropped = true
-                    break
-                end
-            end
-
-            if dropped then
-                takeDiamonds()
-                break
-            end
-
-            task.wait(0.1)
-        end
-    end
-end)
-        local dropped = waitForDiamonds(500)
+        local dropped = waitForDiamonds(10)
         if dropped then
         tpToStrongholdChest()
           task.wait(3)
